@@ -1,0 +1,7 @@
+# Credenciales reales (usar config_ejemplo.py como plantilla)
+config.py
+
+# Archivo que genera el ESP32 al vincular el chat con /start
+chat_vinculado.txt
+
+__pycache__/
