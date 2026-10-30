@@ -152,11 +152,8 @@ class Notificacion:
         self.fecha = fecha
         self.mensaje = mensaje
 
-    def mostrarPorcentaje(self):
+    def obtenerMensaje(self):
         return self.mensaje
-
-    def enviar(self):
-        return True
 
 class AlertaHumedadBaja(Notificacion):
     def __init__(self, fecha, porcentaje, umbral, recordatorio=False):
@@ -169,10 +166,10 @@ class AlertaHumedadBaja(Notificacion):
         self.porcentaje = porcentaje
         self.umbral = umbral
 
-    def generarAlerta(self):
+    def imprimirEnConsola(self):
         print(self.mensaje)
 
-class RespuestaEstado(Notificacion):
+class RespuestaComando(Notificacion):
     def __init__(self, fecha, comando, contenido):
         super().__init__(fecha, contenido)
         self.comando = comando
@@ -223,7 +220,7 @@ class ESP32:
             print(".", end="")
         return True
 
-    def verificarConexion(self):
+    def reconectarWifi(self):
         # Devuelve True si hubo que reconectar
         if self.wlan.isconnected():
             self.conexionWifi = True
@@ -251,9 +248,6 @@ class ESP32:
 
     def leerSensor(self):
         return self.sensor.medirHumedad()
-
-    def enviarDatos(self, notificacion):
-        return notificacion.enviar()
 
 # ==========================================
 # CLASE: BOT DE TELEGRAM (UC6, UC7)
@@ -348,12 +342,8 @@ class MacetaInteligente:
         self.diaUltimoResumen = None
         self.inicioSegundos = time.time()
 
-    def configurarUmbral(self, valor):
-        self.umbralHumedad = valor
-        return True
-
     def notificar(self, notificacion):
-        return self.bot.enviar_mensaje(notificacion.mostrarPorcentaje())
+        return self.bot.enviar_mensaje(notificacion.obtenerMensaje())
 
     # UC1
     def verificarHumedad(self):
@@ -399,13 +389,13 @@ class MacetaInteligente:
                 return
             if not self.alertaActiva:
                 alerta = AlertaHumedadBaja(timestamp, porcentaje, self.umbralHumedad)
-                alerta.generarAlerta()
+                alerta.imprimirEnConsola()
                 self.notificar(alerta)
                 self.alertaActiva = True
                 self.ultimaAlertaMs = tiempo_actual
             elif time.ticks_diff(tiempo_actual, self.ultimaAlertaMs) >= self.intervaloRecordatorioMs:
                 recordatorio = AlertaHumedadBaja(timestamp, porcentaje, self.umbralHumedad, recordatorio=True)
-                recordatorio.generarAlerta()
+                recordatorio.imprimirEnConsola()
                 self.notificar(recordatorio)
                 self.ultimaAlertaMs = tiempo_actual
         elif self.alertaActiva and porcentaje >= self.umbralHumedad + self.histeresis:
@@ -457,53 +447,53 @@ class MacetaInteligente:
         if comando == "/start":
             if self.bot.chat_id is None:
                 self.bot.vincular_chat(chat_id)
-                return RespuestaEstado(timestamp, comando, f"👋 ¡Hola! Quedaste vinculado a la maceta '{self.nombre}'. Acá vas a recibir las notificaciones.\n\n{TEXTO_AYUDA}")
+                return RespuestaComando(timestamp, comando, f"👋 ¡Hola! Quedaste vinculado a la maceta '{self.nombre}'. Acá vas a recibir las notificaciones.\n\n{TEXTO_AYUDA}")
             if self.bot.es_autorizado(chat_id):
-                return RespuestaEstado(timestamp, comando, f"Ya estás vinculado a la maceta '{self.nombre}'.\n\n{TEXTO_AYUDA}")
+                return RespuestaComando(timestamp, comando, f"Ya estás vinculado a la maceta '{self.nombre}'.\n\n{TEXTO_AYUDA}")
 
         if self.bot.chat_id is None:
-            return RespuestaEstado(timestamp, comando, "Enviá /start para vincularte con la maceta.")
+            return RespuestaComando(timestamp, comando, "Enviá /start para vincularte con la maceta.")
 
         # UC7
         if not self.bot.es_autorizado(chat_id):
             print(f"Chat no autorizado: {chat_id}")
-            return RespuestaEstado(timestamp, comando, "⛔ No autorizado.")
+            return RespuestaComando(timestamp, comando, "⛔ No autorizado.")
 
         # UC8
         if comando == "/ayuda":
-            return RespuestaEstado(timestamp, comando, TEXTO_AYUDA)
+            return RespuestaComando(timestamp, comando, TEXTO_AYUDA)
 
         # UC3
         if comando == "/humedad":
             if self.ultimoPorcentaje is None:
-                return RespuestaEstado(timestamp, comando, "Todavía no hay lecturas disponibles.")
+                return RespuestaComando(timestamp, comando, "Todavía no hay lecturas disponibles.")
             texto = f"💧 Humedad actual: {self.ultimoPorcentaje}%\nLectura: {self.fechaUltimaLectura}"
             if self.fallaSensor:
                 texto += "\n⚠️ El sensor tiene una falla: el valor puede no estar actualizado."
-            return RespuestaEstado(timestamp, comando, texto)
+            return RespuestaComando(timestamp, comando, texto)
 
         # UC13
         if comando == "/umbral":
-            return RespuestaEstado(timestamp, comando, f"🎯 Umbral de humedad: {self.umbralHumedad}%\n(Está definido en el software y no se puede modificar desde el bot.)")
+            return RespuestaComando(timestamp, comando, f"🎯 Umbral de humedad: {self.umbralHumedad}%\n(Está definido en el software y no se puede modificar desde el bot.)")
 
         # UC14
         if comando == "/pausar":
             if self.notificacionesPausadas:
-                return RespuestaEstado(timestamp, comando, "Las notificaciones ya estaban pausadas.")
+                return RespuestaComando(timestamp, comando, "Las notificaciones ya estaban pausadas.")
             self.notificacionesPausadas = True
-            return RespuestaEstado(timestamp, comando, "🔕 Notificaciones pausadas")
+            return RespuestaComando(timestamp, comando, "🔕 Notificaciones pausadas")
 
         # UC15
         if comando == "/reanudar":
             if not self.notificacionesPausadas:
-                return RespuestaEstado(timestamp, comando, "Las notificaciones ya estaban activadas.")
+                return RespuestaComando(timestamp, comando, "Las notificaciones ya estaban activadas.")
             self.notificacionesPausadas = False
-            return RespuestaEstado(timestamp, comando, "🔔 Notificaciones activadas")
+            return RespuestaComando(timestamp, comando, "🔔 Notificaciones activadas")
 
         # UC16
         if comando == "/historial":
             historial_texto = self.leer_historial()
-            return RespuestaEstado(timestamp, comando, f"📋 *Historial*:\n{historial_texto}")
+            return RespuestaComando(timestamp, comando, f"📋 *Historial*:\n{historial_texto}")
 
         # UC18
         if comando == "/estado":
@@ -516,7 +506,7 @@ class MacetaInteligente:
                 lectura = "sin lecturas"
             else:
                 lectura = f"{self.ultimoPorcentaje}% ({self.fechaUltimaLectura})"
-            return RespuestaEstado(timestamp, comando, (
+            return RespuestaComando(timestamp, comando, (
                 "📡 Estado del sistema\n"
                 f"WiFi: {wifi}\n"
                 f"Última lectura: {lectura}\n"
@@ -525,7 +515,7 @@ class MacetaInteligente:
                 f"Tiempo encendido: {self.tiempoEncendido()}"
             ))
 
-        return RespuestaEstado(timestamp, comando, f"Comando no reconocido: {comando}\nEnviá /ayuda para ver los comandos.")
+        return RespuestaComando(timestamp, comando, f"Comando no reconocido: {comando}\nEnviá /ayuda para ver los comandos.")
 
     def atenderComandos(self):
         for resultado in self.bot.obtener_actualizaciones():
@@ -585,7 +575,7 @@ class MacetaInteligente:
         try:
             while True:
                 # UC5: si se reconectó, no se recuperan los registros del tiempo sin conexión
-                if self.esp32.verificarConexion():
+                if self.esp32.reconectarWifi():
                     ultimo_registro_ms = time.ticks_ms()
 
                 tiempo_actual = time.ticks_ms()
